@@ -1,0 +1,187 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================
+// Synonyms
+// =========================
+model Synonyms {
+  synonym_id Int     @id
+  pubchemcid BigInt
+  synonym    String
+
+  @@map("synonyms")
+}
+
+// =========================
+// compoundAPIIdentity
+// =========================
+model CompoundAPIIdentity {
+  id         Int     @id
+  name       String?
+  pubchemcid BigInt  @unique
+  iupacname  String?
+  cas        String?
+
+  ingredients DrugIngredient[]
+  pubchem CompoundAPIPubchem?
+
+  @@map("compoundapiidentity")
+}
+
+// =========================
+// compoundAPIPubchem
+// =========================
+model CompoundAPIPubchem {
+  id                       Int     @id
+  pubchemcid               BigInt?
+  molecularformula         String?
+  molecularweight          Float?
+  canonicalsmiles          String?
+  isomericsmiles           String?
+  inchi                    String?
+  inchikey                 String?
+  xlogp                    Float?
+  exactmass                Float?
+  monoisotopicmass         Float?
+  tpsa                     Float?
+  complexity               Float?
+  hbonddonorcount          Int?
+  hbondacceptorcount       Int?
+  rotatablebondcount       Int?
+  heavyatomcount           Int?
+  atomstereocount          Int?
+  definedatomstereocount   Int?
+  undefinedatomstereocount Int?
+  bondstereocount          Int?
+  definedbondstereocount   Int?
+  undefinedbondstereocount Int?
+  covalentunitcount        Int?
+  volume3d                 Float?
+  xstericquadrupole3d      Float?
+  ystericquadrupole3d      Float?
+  zstericquadrupole3d      Float?
+  featurecount3d           Int?
+  featureacceptorcount3d   Int?
+  featuredonorcount3d      Int?
+  featureanioncount3d      Int?
+  featurecationcount3d     Int?
+  featureringcount3d       Int?
+  featurehydrophobecount3d Int?
+  discontinued             Int?
+  pubchemurl               String?
+  saltcategory             String?
+
+  identity   CompoundAPIIdentity? @relation(fields: [id], references: [id])
+
+  @@map("compoundapipubchem")
+}
+
+// =========================
+// drugFormulations
+// =========================
+model DrugFormulation {
+  setid                  String?
+  id                     String  @id
+  versionnumber          String?
+  splversion             String?
+  effectivetime          String?
+  publisheddate          String?
+  title                  String?
+  brandname              String?
+  genericname            String?
+  manufacturername       String?
+  manufactureraddress    String?
+  allactiveingredients   String?
+  inactiveingredients    String?
+  dosageform             String?
+  routeofadministration  String?
+  deaschedule            String?
+  marketingstatus        String?
+  marketingstartdate     String?
+  productcode            String?
+  packagedescription     String?
+  indicationsandusage    String?
+  dosageandadmin         String?
+  contraindications      String?
+  warnings               String?
+  precautions            String?
+  adversereactions       String?
+  druginteractions       String?
+  howsupplied            String?
+  storageandhandling     String?
+  drugabuseanddependence String?
+  infoforpatients        String?
+  instructionsforuse     String?
+  clinicalpharmacology   String?
+  mechanismofaction      String?
+  pharmacokinetics       String?
+  pregnancy              String?
+  nursingmothers         String?
+  pediatricuse           String?
+  geriatricuse           String?
+  documenttype           String?
+
+  ingredients DrugIngredient[]
+
+  @@map("drugformulations")
+}
+
+// =========================
+// drugIngredient
+// =========================
+model DrugIngredient {
+  id         Int     @id
+  drugid     String
+  compoundid Int
+
+  drug       DrugFormulation     @relation(fields: [drugid], references: [id])
+  compound   CompoundAPIIdentity @relation(fields: [compoundid], references: [id])
+
+  @@map("drugingredient")
+}
+
+// =========================
+// meltingPoint
+// =========================
+model MeltingPoint {
+  id                    Int     @id
+  pubchemcid            BigInt  @unique
+  minmp                 Float?
+  maxmp                 Float?
+  rangeflag             String?
+  mendeleympcelsius     String?
+  cempcelsius           Float?
+  harvarddataverseminmp Float?
+  harvarddataversemaxmp Float?
+  pubchemsource1        String?
+  pubchemmp1            Float?
+  pubchemsource2        String?
+  pubchemmp2            Float?
+  pubchemsource3        String?
+  pubchemmp3            Float?
+  pubchemsource4        String?
+  pubchemmp4            Float?
+  pubchemsource5        String?
+  pubchemmp5            Float?
+  pubchemsource6        String?
+  pubchemmp6            Float?
+  pubchemsource7        String?
+  pubchemmp7            Float?
+  pubchemsource8        String?
+  pubchemmp8            Float?
+  pubchemsource9        String?
+  pubchemmp9            Float?
+  pubchemsource10       String?
+  pubchemmp10           Float?
+  source                String?
+
+  @@map("meltingpoint")
+}
