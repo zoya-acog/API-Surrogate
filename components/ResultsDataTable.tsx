@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
@@ -36,15 +35,23 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 type Drug = {
   id: string
   brandName: string
+  genericName: string
+  manufacturerName: string
+  allActiveIngredients: string
   inactiveIngredients: string
   dosageForm: string
   dosageAndAdmin: string
+  indicationsAndUsage: string
+  warnings: string
+  precautions: string
+  contraindications: string
 }
 
 type Compound = {
   id: string
   name: string
   canonicalSMILES: string
+  isomericSMILES: string
   molecularWeight: number
   cas: string
   pubChemCID: string
@@ -52,9 +59,11 @@ type Compound = {
   xLogP: number
   iupacName: string
   molecularFormula: string
+  inchi: string
   inchiKey: string
   drugs: Drug[]
   similarityScore: number
+  meltingPoint: { min: number | null; max: number | null; } | null;
 }
 
 
@@ -102,11 +111,12 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
   const [columnVisibility, setColumnVisibility] = useState({
     "compound.structure": false,
     "drug.brandName": true,
+    "drug.genericName": true,
     "drug.allActiveIngredients":true,
     "drug.inactiveIngredients": true,
     "compound.name": true,
-    // "compound.similarityScore": true,
     "compound.canonicalSMILES": false,
+    "compound.isomericSMILES": false,
     "compound.molecularWeight": false,
     "compound.molecularFormula": false,
     "compound.cas": false,
@@ -114,229 +124,233 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
     "compound.tpsa": false,
     "compound.xLogP": false,
     "compound.iupacName": false,
+    "compound.inchi": false,
     "compound.inchiKey": false,
+    "compound.meltingPoint": true,
     "drug.dosageForm": true,
     "drug.dosageAndAdmin": true,
+    "drug.manufacturerName": false,
+    "drug.indicationsAndUsage": false,
+    "drug.warnings": false,
+    "drug.precautions": false,
+    "drug.contraindications": false,
   })
 
   
   
 
   // Define column definitions for AG-Grid
-  const columnDefs = useMemo<ColDef[]>(
-    () => [
-      {
-        headerName: "Brand Name",
-        field: "drug.brandName",
-        cellRenderer: BrandNameRenderer,
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 150,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
+  const columnDefs = useMemo<ColDef[]>(() => [
+    {
+      headerName: "Brand Name",
+      field: "drug.brandName",
+      cellRenderer: BrandNameRenderer,
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 150,
+    },
+    {
+      headerName: "Generic Name",
+      field: "drug.genericName",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 180,
+    },
+    {
+      headerName: "API",
+      field: "compound.name",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 180,
+    },
+    {
+      headerName: "All Active Ingredients",
+      field: "drug.allActiveIngredients",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 180,
+    },
+    {
+      headerName: "Inactive Ingredients",
+      field: "drug.inactiveIngredients",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "SMILES",
+      field: "compound.canonicalSMILES",
+      cellRenderer: SmilesRenderer,
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Isomeric SMILES",
+      field: "compound.isomericSMILES",
+      cellRenderer: SmilesRenderer,
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Molecular Weight",
+      field: "compound.molecularWeight",
+      filter: "agNumberColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 150,
+      valueFormatter: (params: ValueFormatterParams) => params.value ? params.value.toFixed(2) : "N/A",
+    },
+    {
+      headerName: "Molecular Formula",
+      field: "compound.molecularFormula",
+      cellRenderer: FormulaRenderer,
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 150,
+    },
+    {
+      headerName: "CAS ID",
+      field: "compound.cas",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 150,
+    },
+    {
+      headerName: "PubChem CID",
+      field: "compound.pubChemCID",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 150,
+    },
+    {
+      headerName: "TPSA",
+      field: "compound.tpsa",
+      filter: "agNumberColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 120,
+      valueFormatter: (params: ValueFormatterParams) => params.value ? params.value.toFixed(2) : "N/A",
+    },
+    {
+      headerName: "XLogP",
+      field: "compound.xLogP",
+      filter: "agNumberColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 120,
+      valueFormatter: (params: ValueFormatterParams) => params.value !== null ? params.value.toFixed(2) : "N/A",
+    },
+    {
+      headerName: "Melting Point (°C)",
+      field: "compound.meltingPoint",
+      sortable: true,
+      resizable: true,
+      width: 150,
+      valueFormatter: (params: ValueFormatterParams) => {
+        if (!params.value) return "N/A";
+        const { min, max } = params.value;
+        if (min && max && min !== max) {
+          return `${min} - ${max}`;
+        }
+        if (min) return `${min}`;
+        if (max) return `${max}`;
+        return "N/A";
       },
-      {
-        headerName: "API",
-        field: "compound.name",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 180,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "All active ingredients",
-        field: "drug.allActiveIngredients",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 180,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "Inactive Ingredients",
-        field: "drug.inactiveIngredients",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 200,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-    //   {
-    //     headerName: "Similarity",
-    //     field: "compound.similarityScore",
-    //     filter: "agNumberColumnFilter",
-    //     sortable: true,
-    //     resizable: true,
-    //     width: 120,
-    //     valueFormatter: (params: ValueFormatterParams) => {
-    //       return params.value !== undefined ? `${(params.value * 100).toFixed(1)}%` : "N/A"
-    //     },
-    //     filterParams: {
-    //       filterOptions: ["equals", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"],
-    //       debounceMs: 200,
-    //     },
-    //   },
-      {
-        headerName: "SMILES",
-        field: "compound.canonicalSMILES",
-        cellRenderer: SmilesRenderer,
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 200,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "Molecular Weight",
-        field: "compound.molecularWeight",
-        filter: "agNumberColumnFilter",
-        sortable: true,
-        resizable: true,
-        width: 150,
-        valueFormatter: (params: ValueFormatterParams) => {
-          return params.value ? params.value.toFixed(2) : "N/A"
-        },
-        filterParams: {
-          filterOptions: ["equals", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "Molecular Formula",
-        field: "compound.molecularFormula",
-        cellRenderer: FormulaRenderer,
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 150,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "CAS ID",
-        field: "compound.cas",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        width: 150,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "PubChem CID",
-        field: "compound.pubChemCID",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        width: 150,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "TPSA",
-        field: "compound.tpsa",
-        filter: "agNumberColumnFilter",
-        sortable: true,
-        resizable: true,
-        width: 120,
-        valueFormatter: (params: ValueFormatterParams) => {
-          return params.value ? params.value.toFixed(2) : "N/A"
-        },
-        filterParams: {
-          filterOptions: ["equals", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "XLogP",
-        field: "compound.xLogP",
-        filter: "agNumberColumnFilter",
-        sortable: true,
-        resizable: true,
-        width: 120,
-        valueFormatter: (params: ValueFormatterParams) => {
-          return params.value !== null ? params.value.toFixed(2) : "N/A"
-        },
-        filterParams: {
-          filterOptions: ["equals", "notEqual", "greaterThan", "greaterThanOrEqual", "lessThan", "lessThanOrEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "IUPAC Name",
-        field: "compound.iupacName",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 200,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "InChIKey",
-        field: "compound.inchiKey",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 180,
-        cellClass: "font-mono text-xs",
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      {
-        headerName: "Dosage Form",
-        field: "drug.dosageForm",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 150,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-      
-      {
-        headerName: "Dosage & Administration",
-        field: "drug.dosageAndAdmin",
-        filter: "agTextColumnFilter",
-        sortable: true,
-        resizable: true,
-        minWidth: 200,
-        filterParams: {
-          filterOptions: ["contains", "notContains", "startsWith", "endsWith", "equals", "notEqual"],
-          debounceMs: 200,
-        },
-      },
-    ],
-    [],
-  )
+    },
+    {
+      headerName: "IUPAC Name",
+      field: "compound.iupacName",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "InChI",
+      field: "compound.inchi",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "InChIKey",
+      field: "compound.inchiKey",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 180,
+      cellClass: "font-mono text-xs",
+    },
+    {
+      headerName: "Dosage Form",
+      field: "drug.dosageForm",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 150,
+    },
+    {
+      headerName: "Dosage & Administration",
+      field: "drug.dosageAndAdmin",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Manufacturer",
+      field: "drug.manufacturerName",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Indications & Usage",
+      field: "drug.indicationsAndUsage",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Warnings",
+      field: "drug.warnings",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Precautions",
+      field: "drug.precautions",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+    {
+      headerName: "Contraindications",
+      field: "drug.contraindications",
+      filter: "agTextColumnFilter",
+      sortable: true,
+      resizable: true,
+      minWidth: 200,
+    },
+  ], []);
 
   // Default column definitions
   const defaultColDef = useMemo(() => {
@@ -400,6 +414,8 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
         })),
       )
       setRowData(flattenedResults)
+    } else {
+      setRowData([])
     }
   }, [results])
 
@@ -425,8 +441,6 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
     try {
       setIsExporting(true)
 
-      // Use all columns from columnDefs, not just visible ones
-      // Only exclude the structure column which can't be exported properly
       const exportColumns = columnDefs
         .filter((col) => col.field !== "compound.structure")
         .map((col) => ({
@@ -434,7 +448,6 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
           header: col.headerName || "",
         }))
 
-      // Get filtered data from AG-Grid
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const filteredData: any[] = []
       gridRef.current.api.forEachNodeAfterFilter((node) => {
@@ -443,16 +456,11 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
         }
       })
 
-      // Prepare data for XLSX export
       const worksheet = []
-
-      // Add header row
       worksheet.push(exportColumns.map((col) => col.header))
 
-      // Add data rows
       filteredData.forEach((row) => {
         const dataRow = exportColumns.map((column) => {
-          // Get the value based on the column id (handling nested properties)
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           let value:any = ""
           const [objectKey, propertyKey] = column.id.split(".")
@@ -463,7 +471,6 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
             value = row[objectKey] ?? ""
           }
 
-          // Format specific column values
           if (column.id === "compound.similarityScore" && value !== "") {
             value = `${(value * 100).toFixed(1)}%`
           } else if (
@@ -475,7 +482,6 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
             value = Number(value).toFixed(2)
           }
 
-          // Handle special cases like objects or arrays
           if (typeof value === "object") {
             value = JSON.stringify(value)
           }
@@ -486,16 +492,13 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
         worksheet.push(dataRow)
       })
 
-      // Convert to XLSX format
       const ws = XLSX.utils.aoa_to_sheet(worksheet)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, "Results")
 
-      // Generate XLSX file
       const excelBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" })
       const fileName = `API-Suroogate-${query}-results-${getFormattedDate()}.xlsx`
 
-      // Create Blob and trigger download
       const blob = new Blob([excelBuffer], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       })
@@ -516,7 +519,7 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
   }
 
 
-// Toggle column visibility function - following the reference implementation
+// Toggle column visibility function
 const toggleColumnVisibility = (field: string) => {
     setColumnVisibility((prev) => ({
       ...prev,
@@ -626,7 +629,6 @@ const toggleColumnVisibility = (field: string) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => handleExportXLSX()}>Download as XLSX</DropdownMenuItem>
-              {/* <DropdownMenuItem onClick={() => handleExport("json")}>Download as JSON</DropdownMenuItem> */}
             </DropdownMenuContent>
           </DropdownMenu>
           

@@ -23,8 +23,8 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL}
       DB_HOST: ${POSTGRES_CONTAINER_NAME}
-    # ports:
-    #   - "3007:3007"
+    ports:
+      - "3007:3007"
     depends_on:
     - api_surrogate_postgres
       

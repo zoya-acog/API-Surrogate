@@ -1,186 +1,70 @@
-// app/api/search/route.ts
+// app/api/draw-search/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { performSimilaritySearch } from '@/lib/similarity-search';
-import type { Prisma } from '@prisma/client';
 
-// Type for compounds with optional similarity score and joined identity info
-type CompoundWithIdentity = {
-  id: number;
-  canonicalsmiles?: string;
-  pubchemcid?: bigint | string;
-  molecularformula?: string;
-  molecularweight?: number;
-  isomericsmiles?: string;
-  inchi?: string;
-  inchikey?: string;
-  xlogp?: number;
-  tpsa?: number;
-  similarityScore?: number;
-  identity?: {
-    name?: string;
-    iupacname?: string;
-    cas?: string;
-  };
-};
-
-function detectInputType(query: string): 'name' | 'smiles' | 'inchi' | 'formula' | 'weight' {
-  if (/[$$$$=#[\]\\/\-+]/.test(query)) return 'smiles';
-  if (query.startsWith('InChI=')) return 'inchi';
-  if (/^([A-Z][a-z]?\d*)+$/.test(query)) return 'formula';
-  return 'name';
-}
-
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('query') || '';
-    const isAdvancedSearch = searchParams.get('advanced') === 'true';
+    const body = await request.json();
+    const { smiles } = body;
 
-    const mw_min = parseFloat(searchParams.get('mw_min') || '0');
-    const mw_max = parseFloat(searchParams.get('mw_max') || '2000');
-    const logd_min = parseFloat(searchParams.get('logd_min') || '-10');
-    const logd_max = parseFloat(searchParams.get('logd_max') || '10');
-
-    const type = query ? detectInputType(query) : 'advanced';
-
-    if (!query && !isAdvancedSearch) {
-      return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
+    if (!smiles) {
+      return NextResponse.json({ error: 'SMILES string is required' }, { status: 400 });
     }
 
-    // Build advanced filters for compoundAPIPubchem
-    const whereClause: Prisma.CompoundAPIPubchemWhereInput = {};
-    if (isAdvancedSearch) {
-      whereClause.molecularweight = { gte: mw_min, lte: mw_max };
-      whereClause.xlogp = { gte: logd_min, lte: logd_max };
+    // 1. Fetch all compounds for similarity search
+    const batchSize = 1000;
+    let offset = 0;
+    const allCompounds: { id: number; smiles: string }[] = [];
+
+    while (true) {
+      const batch = await prisma.compoundAPIPubchem.findMany({
+        where: { canonicalsmiles: { not: null } },
+        select: { id: true, canonicalsmiles: true },
+        skip: offset,
+        take: batchSize,
+      });
+      if (batch.length === 0) break;
+      allCompounds.push(...batch.map(c => ({ id: c.id, smiles: c.canonicalsmiles! })));
+      offset += batchSize;
     }
 
-    let compounds: CompoundWithIdentity[] = [];
+    // 2. Perform similarity search
+    const similarityResults = await performSimilaritySearch(smiles, allCompounds, {
+      radius: 2,
+      nBits: 2048,
+    });
 
-    switch (type) {
-      case 'name':
-        // Name search uses compoundAPIIdentity
-        compounds = await prisma.compoundAPIIdentity.findMany({
-          where: {
-            OR: [
-              { name: { contains: query, mode: 'insensitive' } },
-              { iupacname: { contains: query, mode: 'insensitive' } },
-            ],
-          },
-          include: {
-            pubchem: { // relation to compoundAPIPubchem
-              where: whereClause,
-            },
-          },
-          take: 50,
-        }).then(results =>
-          results.map(r => ({
-            id: r.pubchem?.id ?? 0,
-            canonicalsmiles: r.pubchem?.canonicalsmiles,
-            pubchemcid: r.pubchem?.pubchemcid?.toString(),
-            molecularformula: r.pubchem?.molecularformula,
-            molecularweight: r.pubchem?.molecularweight,
-            isomericsmiles: r.pubchem?.isomericsmiles,
-            inchi: r.pubchem?.inchi,
-            inchikey: r.pubchem?.inchikey,
-            xlogp: r.pubchem?.xlogp,
-            tpsa: r.pubchem?.tpsa,
-            identity: {
-              name: r.name,
-              iupacname: r.iupacname,
-              cas: r.cas,
-            },
-          }))
-        );
-        break;
+    // 3. Fetch full compound data for the results
+    const compoundsFromDb = await prisma.compoundAPIPubchem.findMany({
+      where: { id: { in: similarityResults.map(r => r.id) } },
+      include: { identity: true },
+    });
 
-      case 'smiles': {
-        // Fetch all compounds for similarity search
-        const batchSize = 1000;
-        let offset = 0;
-        const allCompounds: { id: number; canonicalsmiles: string }[] = [];
+    const compounds = compoundsFromDb.map(r => {
+        const match = similarityResults.find(s => s.id === r.id);
+        return {
+          id: r.id,
+          name: r.identity?.name ?? r.identity?.iupacname,
+          iupacName: r.identity?.iupacname,
+          cas: r.identity?.cas,
+          pubChemCID_bigint: r.pubchemcid, // Keep as BigInt for internal use
+          pubChemCID: r.pubchemcid?.toString(),
+          molecularFormula: r.molecularformula,
+          molecularWeight: r.molecularweight,
+          canonicalSMILES: r.canonicalsmiles,
+          isomericSMILES: r.isomericsmiles,
+          inchi: r.inchi,
+          inchiKey: r.inchikey,
+          xLogP: r.xlogp,
+          tpsa: r.tpsa,
+          similarityScore: match?.similarity ?? 0,
+        };
+      })
+    compounds.sort((a, b) => (b.similarityScore ?? 0) - (a.similarityScore ?? 0));
 
-        while (true) {
-          const batch = await prisma.compoundAPIPubchem.findMany({
-            where: { canonicalsmiles: { not: null } },
-            select: { id: true, canonicalsmiles: true },
-            skip: offset,
-            take: batchSize,
-          });
-          if (batch.length === 0) break;
-          allCompounds.push(...batch);
-          offset += batchSize;
-        }
 
-        const compoundsForSearch = allCompounds.map(c => ({
-          id: c.id,
-          smiles: c.canonicalsmiles,
-        }));
-
-        const similarityResults = await performSimilaritySearch(query, compoundsForSearch, {
-          radius: 2,
-          nBits: 2048,
-        });
-
-        // Fetch compounds with joined identity
-        compounds = await prisma.compoundAPIPubchem.findMany({
-          where: { id: { in: similarityResults.map(r => r.id) } },
-          include: {
-            identity: { select: { name: true, iupacname: true, cas: true } },
-          },
-        }).then(results =>
-          results.map(c => {
-            const match = similarityResults.find(r => r.id === c.id);
-            return {
-              ...c,
-              similarityScore: match?.similarity ?? 0,
-            };
-          })
-        );
-
-        // Sort by similarity
-        compounds.sort((a, b) => (b.similarityScore ?? 0) - (a.similarityScore ?? 0));
-        break;
-      }
-
-      case 'formula':
-        compounds = await prisma.compoundAPIPubchem.findMany({
-          where: { molecularformula: { contains: query } },
-          include: { identity: { select: { name: true, iupacname: true, cas: true } } },
-          take: 50,
-        });
-        break;
-
-      case 'weight': {
-        const weight = parseFloat(query);
-        if (isNaN(weight))
-          return NextResponse.json({ error: 'Invalid molecular weight' }, { status: 400 });
-
-        compounds = await prisma.compoundAPIPubchem.findMany({
-          where: { molecularweight: { gte: weight - 0.5, lte: weight + 0.5 } },
-          include: { identity: { select: { name: true, iupacname: true, cas: true } } },
-          take: 50,
-        });
-        break;
-      }
-
-      case 'advanced':
-        if (isAdvancedSearch) {
-          compounds = await prisma.compoundAPIPubchem.findMany({
-            where: whereClause,
-            include: { identity: { select: { name: true, iupacname: true, cas: true } } },
-            take: 50,
-          });
-        } else {
-          return NextResponse.json({ error: 'Invalid search parameters' }, { status: 400 });
-        }
-        break;
-
-      default:
-        return NextResponse.json({ error: 'Invalid search type' }, { status: 400 });
-    }
-
-    // Fetch associated drugs
+    // 4. Fetch associated drugs and melting points
     const results = await Promise.all(
       compounds.map(async (compound) => {
         const drugIngredients = await prisma.drugIngredient.findMany({
@@ -205,33 +89,55 @@ export async function GET(request: Request) {
           },
         });
 
-        const drugs = drugIngredients.map(di => di.drug);
+        const drugs = drugIngredients.map(di => ({
+          id: di.drug.id,
+          brandName: di.drug.brandname,
+          genericName: di.drug.genericname,
+          manufacturerName: di.drug.manufacturername,
+          dosageForm: di.drug.dosageform,
+          dosageAndAdmin: di.drug.dosageandadmin,
+          indicationsAndUsage: di.drug.indicationsandusage,
+          warnings: di.drug.warnings,
+          precautions: di.drug.precautions,
+          contraindications: di.drug.contraindications,
+          inactiveIngredients: di.drug.inactiveingredients,
+          allActiveIngredients: di.drug.allactiveingredients,
+        }));
+
+        let meltingPointData = null;
+        console.log(`[API LOG] Checking melting point for pubchemcid: ${compound.pubChemCID_bigint}`);
+        if (compound.pubChemCID_bigint) {
+            try {
+                const mp = await prisma.meltingPoint.findUnique({
+                    where: { pubchemcid: compound.pubChemCID_bigint },
+                });
+                console.log(`[API LOG] Melting point query result:`, mp);
+                if (mp) {
+                    meltingPointData = { min: mp.minmp, max: mp.maxmp };
+                }
+            } catch (e) {
+                console.error(`[API ERROR] Could not fetch melting point for pubchemcid: ${compound.pubChemCID_bigint}`, e);
+            }
+        }
+        console.log(`[API LOG] Final meltingPointData:`, meltingPointData);
+        
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { pubChemCID_bigint, ...compoundForFrontend } = compound;
 
         return {
-          id: compound.id,
-          name: compound.identity?.name,
-          iupacName: compound.identity?.iupacname,
-          cas: compound.identity?.cas,
-          similarityScore: compound.similarityScore ?? 0,
-          pubChemCID: compound.pubchemcid?.toString(),
-          molecularFormula: compound.molecularformula,
-          molecularWeight: compound.molecularweight,
-          canonicalSMILES: compound.canonicalsmiles,
-          isomericSMILES: compound.isomericsmiles,
-          inchi: compound.inchi,
-          inchiKey: compound.inchikey,
-          xLogP: compound.xlogp,
-          tpsa: compound.tpsa,
+          ...compoundForFrontend,
           drugs,
+          meltingPoint: meltingPointData,
         };
       })
     );
 
     return NextResponse.json({ results });
+
   } catch (error) {
-    console.error('Search error:', error);
+    console.error('Draw search error:', error);
     return NextResponse.json(
-      { error: 'Error processing search: ' + (error instanceof Error ? error.message : error) },
+      { error: 'Error processing draw search: ' + (error instanceof Error ? error.message : error) },
       { status: 500 }
     );
   }
