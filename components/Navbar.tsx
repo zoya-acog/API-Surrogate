@@ -1,5 +1,12 @@
-
-import Image from "next/image"
+import Image from "next/image";
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
   return (
@@ -8,26 +15,92 @@ const Navbar = () => {
         <div className="flex justify-between h-16">
           <div className="flex-shrink-0 flex items-center">
             <Image src="/aganitha-logo.png" alt="Logo" width={150} height={150} />
-            {/* <span className="ml-2 text-xl font-bold text-primary">API Surrogate Search</span> */}
           </div>
-          {/* <div className="flex items-center">
-            <Link href="/" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-              Home
-            </Link>
-            <Link
-              href="/sample"
-              className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-            >
-              Visuals
-            </Link>
-            <Link href="#" className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
-              About
-            </Link>
-          </div> */}
+          <div className="flex items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded text-sm font-medium flex items-center gap-2 outline-none shadow-sm">
+                <span>About</span>
+                <ChevronDown className="h-4 w-4 fill-current" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 mr-4">
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/API_Surrogate_About.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
+                    1. Introduction
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/How_to_use.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
+                    2. How to use
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/Data_curation.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
+                    3. Data Curation
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/Data_curation.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
+                    3.1. Formulations details
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/Calculated_experimental_properties.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
+                    3.2. Calculated properties
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/Calculated_experimental_properties.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
+                    3.3. Experimental Properties
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/Melting_Point.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                    3.3.1. Melting Point
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="#" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                    3.3.2. Enthalpy of fusion
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/pdfs/pka.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                    3.3.3. pKa
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/pdfs/peff.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                    3.3.4. Peff
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/pdfs/solubility.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                    3.3.5. Solubility
+                  </Link>
+                </DropdownMenuItem>
+                
+                <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
+                  <Link href="/pdfs/logd.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                    3.3.6. LogD
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </div>
     </nav>
-  )
-}
+  );
+};
 
-export default Navbar
+export default Navbar;

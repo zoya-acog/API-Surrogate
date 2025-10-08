@@ -1,40 +1,81 @@
 // app/api/drug/[id]/route.ts
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import prisma from '@/lib/prisma';
 
-export async function GET(request: Request) {
+type RouteParams = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(
+  request: NextRequest, 
+  props: RouteParams
+) {
   try {
-    // Extract the 'id' from the URL
-    const url = new URL(request.url);
-    const id = url.pathname.split('/').pop(); // Last part of the path
+    const params = await props.params;
+    const { id } = params;
+    console.log(`[API] Received drug ID: ${id}`);
 
-    if (!id) {
-      return NextResponse.json({ error: 'Invalid formulation ID' }, { status: 400 });
-    }
-
-    // Fetch the drug formulation
-    const formulation = await prisma.drugFormulation.findUnique({
-      where: { id },
+    const drug = await prisma.drugFormulation.findUnique({
+      where: { id: id },
+      include: {
+        ingredients: {
+          include: {
+            compound: {
+              include: {
+                pubchem: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!formulation) {
-      return NextResponse.json({ error: 'Formulation not found' }, { status: 404 });
+    if (!drug) {
+      console.log(`[API] Drug with ID ${id} not found.`);
+      return NextResponse.json({ error: 'Drug not found' }, { status: 404 });
     }
 
-    // Fetch associated compounds
-    const formulationIngredients = await prisma.drugIngredient.findMany({
-      where: { drugid: id },
-      include: { compound: true },
-    });
+    console.log(`[API] Found drug:`, drug.brandname);
 
-    const compounds = formulationIngredients.map((di) => di.compound);
+    const compounds = drug.ingredients.map(ingredient => ({
+      id: ingredient.compound.id,
+      name: ingredient.compound.name,
+      canonicalSMILES: ingredient.compound.pubchem?.canonicalsmiles,
+      molecularFormula: ingredient.compound.pubchem?.molecularformula,
+      molecularWeight: ingredient.compound.pubchem?.molecularweight,
+      inchiKey: ingredient.compound.pubchem?.inchikey,
+      iupacName: ingredient.compound.iupacname,
+    }));
 
-    return NextResponse.json({ formulation, compounds });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { ingredients, ...rest } = drug;
+
+    const formattedDrug = {
+      id: rest.id,
+      brandName: rest.brandname,
+      genericName: rest.genericname,
+      manufacturerName: rest.manufacturername,
+      allActiveIngredients: rest.allactiveingredients,
+      inactiveIngredients: rest.inactiveingredients,
+      dosageForm: rest.dosageform,
+      dosageAndAdmin: rest.dosageandadmin,
+      indicationsAndUsage: rest.indicationsandusage,
+      contraindications: rest.contraindications,
+      warnings: rest.warnings,
+      precautions: rest.precautions,
+      adverseReactions: rest.adversereactions,
+      drugInteractions: rest.druginteractions,
+      howSupplied: rest.howsupplied,
+      storageAndHandling: rest.storageandhandling,
+      routeOfAdministration: rest.routeofadministration,
+      // Add other fields as needed, ensuring camelCase
+    };
+
+    console.log(`[API] Formatted drug details:`, formattedDrug);
+    console.log(`[API] Returning drug details for: ${formattedDrug.brandName}`);
+    return NextResponse.json({ drug: formattedDrug, compounds });
   } catch (error) {
-    console.error('Error fetching formulation details:', error);
-    return NextResponse.json(
-      { error: 'Error processing request' },
-      { status: 500 }
-    );
+    console.error('Drug API error:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

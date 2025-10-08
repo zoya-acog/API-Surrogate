@@ -17,7 +17,6 @@ function ResultsContent() {
     </div>
   )
 }
-
 // Main page component
 export default function ResultsPage() {
   return (
@@ -34,4 +33,3 @@ export default function ResultsPage() {
     </main>
   )
 }
-

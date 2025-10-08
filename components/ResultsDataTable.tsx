@@ -127,6 +127,8 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
     "compound.inchi": false,
     "compound.inchiKey": false,
     "compound.meltingPoint": true,
+    "compound.minMeltingPoint": false,
+    "compound.maxMeltingPoint": false,
     "drug.dosageForm": true,
     "drug.dosageAndAdmin": true,
     "drug.manufacturerName": false,
@@ -270,6 +272,24 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
       },
     },
     {
+      headerName: "Min Melting Point (°C)",
+      field: "compound.meltingPoint.min",
+      filter: "agNumberColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 150,
+      valueFormatter: (params: ValueFormatterParams) => params.value !== null ? params.value.toFixed(2) : "N/A",
+    },
+    {
+      headerName: "Max Melting Point (°C)",
+      field: "compound.meltingPoint.max",
+      filter: "agNumberColumnFilter",
+      sortable: true,
+      resizable: true,
+      width: 150,
+      valueFormatter: (params: ValueFormatterParams) => params.value !== null ? params.value.toFixed(2) : "N/A",
+    },
+    {
       headerName: "IUPAC Name",
       field: "compound.iupacName",
       filter: "agTextColumnFilter",
@@ -382,7 +402,7 @@ export default function ResultsDataTable({ query, type, drawn = false }) {
           })
         } else {
           // Regular search
-          response = await fetch(`/api/search?query=${encodeURIComponent(query)}&type=${type}`)
+          response = await fetch(`/api/search${window.location.search}`)
         }
 
         if (!response.ok) {
@@ -568,8 +588,8 @@ const toggleColumnVisibility = (field: string) => {
       <h2 className="text-2xl font-bold flex items-center gap-2">
             Search Results for :{" "}
             <div className="relative group">
-              <span className="font-mono inline-block max-w-[300px] truncate" title={query}>
-                {query && query.length > 30 ? `${query.substring(0, 30)}...` : query}
+              <span className="font-mono inline-block" title={query}>
+                {query}
               </span>
             </div>
           </h2>

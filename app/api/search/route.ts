@@ -1,4 +1,3 @@
-// app/api/search/route.ts
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { performSimilaritySearch } from '@/lib/similarity-search';
@@ -25,7 +24,7 @@ type CompoundAPIPubchemPayloadFlexible = {
 
 // Detect type of search input
 function detectInputType(query: string): 'name' | 'smiles' | 'inchi' | 'formula' | 'weight' {
-  if (/[$$$$=#[\]\/\-+]/.test(query)) return 'smiles';
+  if (/[$$$$=#[\]\\/\-+]/.test(query)) return 'smiles';
   if (query.startsWith('InChI=')) return 'inchi';
   if (/^([A-Z][a-z]?\d*)+$/.test(query)) return 'formula';
   return 'name';
@@ -33,39 +32,63 @@ function detectInputType(query: string): 'name' | 'smiles' | 'inchi' | 'formula'
 
 export async function GET(request: Request) {
   try {
+    console.log(`[API DEBUG] Request URL: ${request.url}`);
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query') || '';
     const isAdvancedSearch = searchParams.get('advanced') === 'true';
+    console.log(`[API DEBUG] isAdvancedSearch: ${isAdvancedSearch}`);
 
-    const mw_min = parseFloat(searchParams.get('mw_min') || '0');
-    const mw_max = parseFloat(searchParams.get('mw_max') || '2000');
-    const logd_min = parseFloat(searchParams.get('logd_min') || '-10');
-    const logd_max = parseFloat(searchParams.get('logd_max') || '10');
+    const mp_min = parseFloat(searchParams.get('mp_min') || '-50');
+    const mp_max = parseFloat(searchParams.get('mp_max') || '300');
+    console.log('[API DEBUG] Parsed melting point range:', { mp_min, mp_max });
 
-    const type = query ? detectInputType(query) : 'advanced';
+    // Determine search type based on query, default to 'advanced' if no query and advanced search is enabled
+    const type = query ? detectInputType(query) : (isAdvancedSearch ? 'advanced' : 'name');
 
-    if (!query && !isAdvancedSearch) {
-      return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
-    }
-
-    // Advanced search filters
+    // Build where clause with melting point filter if advanced search is enabled
     const whereClause: Prisma.CompoundAPIPubchemWhereInput = {};
-    if (isAdvancedSearch) {
-      whereClause.molecularweight = { gte: mw_min, lte: mw_max };
-      whereClause.xlogp = { gte: logd_min, lte: logd_max };
+    let meltingPointCids: bigint[] = [];
+    if (isAdvancedSearch && (mp_min !== -50 || mp_max !== 300)) {
+      console.log(`[API DEBUG] Applying melting point filter: mp_min=${mp_min}, mp_max=${mp_max}`);
+      const meltingPoints = await prisma.meltingPoint.findMany({
+        where: {
+          minmp: { lte: mp_max },
+          maxmp: { gte: mp_min },
+        },
+        select: { pubchemcid: true },
+      });
+      meltingPointCids = meltingPoints.map(mp => mp.pubchemcid);
+      console.log('[API DEBUG] Melting point CIDs:', meltingPointCids);
+
+      if (meltingPointCids.length === 0) {
+        console.log('[API DEBUG] No matching melting points—returning empty results');
+        whereClause.pubchemcid = { in: [] };
+      } else {
+        whereClause.pubchemcid = { in: meltingPointCids };
+      }
     }
+    console.log('[API DEBUG] Where clause:', JSON.stringify(whereClause, (key, value) =>
+      typeof value === 'bigint' ? value.toString() : value
+    ));
 
     // Container for results
     let compounds: CompoundAPIPubchemPayloadFlexible[] = [];
 
+    // Base where clause for query-based searches
+    let baseWhere: Prisma.CompoundAPIIdentityWhereInput | Prisma.CompoundAPIPubchemWhereInput = {};
+
     switch (type) {
       case 'name':
+        baseWhere = {
+          OR: [
+            { name: { contains: query, mode: 'insensitive' } },
+            { iupacname: { contains: query, mode: 'insensitive' } },
+          ],
+        };
         compounds = await prisma.compoundAPIIdentity.findMany({
           where: {
-            OR: [
-              { name: { contains: query, mode: 'insensitive' } },
-              { iupacname: { contains: query, mode: 'insensitive' } },
-            ],
+            ...baseWhere,
+            ...(isAdvancedSearch ? { pubchem: whereClause } : {}), // Apply MP filter if advanced
           },
           include: { pubchem: true },
           take: 50,
@@ -90,13 +113,18 @@ export async function GET(request: Request) {
         break;
 
       case 'smiles': {
+        let smilesWhere: Prisma.CompoundAPIPubchemWhereInput = { canonicalsmiles: { not: null } };
+        if (isAdvancedSearch) {
+          smilesWhere = { ...smilesWhere, ...whereClause };
+        }
+
         const batchSize = 1000;
         let offset = 0;
         const allCompounds: { id: number; smiles: string }[] = [];
 
         while (true) {
           const batch = await prisma.compoundAPIPubchem.findMany({
-            where: { canonicalsmiles: { not: null } },
+            where: smilesWhere,
             select: { id: true, canonicalsmiles: true },
             skip: offset,
             take: batchSize,
@@ -112,29 +140,29 @@ export async function GET(request: Request) {
         });
 
         const compoundsFromDb = await prisma.compoundAPIPubchem.findMany({
-            where: { id: { in: similarityResults.map(r => r.id) } },
-            include: { identity: true },
+          where: { id: { in: similarityResults.map(r => r.id) } },
+          include: { identity: true },
         });
 
         compounds = compoundsFromDb.map(r => {
-            const match = similarityResults.find(s => s.id === r.id);
-            return {
-                id: r.id,
-                name: r.identity?.name ?? r.identity?.iupacname,
-                iupacName: r.identity?.iupacname,
-                cas: r.identity?.cas,
-                pubChemCID_bigint: r.pubchemcid,
-                pubChemCID: r.pubchemcid?.toString(),
-                molecularFormula: r.molecularformula,
-                molecularWeight: r.molecularweight,
-                canonicalSMILES: r.canonicalsmiles,
-                isomericSMILES: r.isomericsmiles,
-                inchi: r.inchi,
-                inchiKey: r.inchikey,
-                xLogP: r.xlogp,
-                tpsa: r.tpsa,
-                similarityScore: match?.similarity ?? 0,
-            };
+          const match = similarityResults.find(s => s.id === r.id);
+          return {
+            id: r.id,
+            name: r.identity?.name ?? r.identity?.iupacname,
+            iupacName: r.identity?.iupacname,
+            cas: r.identity?.cas,
+            pubChemCID_bigint: r.pubchemcid,
+            pubChemCID: r.pubchemcid?.toString(),
+            molecularFormula: r.molecularformula,
+            molecularWeight: r.molecularweight,
+            canonicalSMILES: r.canonicalsmiles,
+            isomericSMILES: r.isomericsmiles,
+            inchi: r.inchi,
+            inchiKey: r.inchikey,
+            xLogP: r.xlogp,
+            tpsa: r.tpsa,
+            similarityScore: match?.similarity ?? 0,
+          };
         });
 
         compounds.sort((a, b) => (b.similarityScore ?? 0) - (a.similarityScore ?? 0));
@@ -142,11 +170,15 @@ export async function GET(request: Request) {
       }
 
       case 'formula':
+        baseWhere = {
+          pubchem: {
+            molecularformula: { contains: query },
+          },
+        };
         compounds = await prisma.compoundAPIIdentity.findMany({
           where: {
-            pubchem: {
-              molecularformula: { contains: query },
-            },
+            ...baseWhere,
+            ...(isAdvancedSearch ? { pubchem: whereClause } : {}), // Apply MP filter if advanced
           },
           include: { pubchem: true },
           take: 50,
@@ -174,11 +206,15 @@ export async function GET(request: Request) {
         const weight = parseFloat(query);
         if (isNaN(weight)) return NextResponse.json({ error: 'Invalid molecular weight' }, { status: 400 });
 
+        baseWhere = {
+          pubchem: {
+            molecularweight: { gte: weight - 0.5, lte: weight + 0.5 },
+          },
+        };
         compounds = await prisma.compoundAPIIdentity.findMany({
           where: {
-            pubchem: {
-              molecularweight: { gte: weight - 0.5, lte: weight + 0.5 },
-            },
+            ...baseWhere,
+            ...(isAdvancedSearch ? { pubchem: whereClause } : {}), // Apply MP filter if advanced
           },
           include: { pubchem: true },
           take: 50,
@@ -204,33 +240,34 @@ export async function GET(request: Request) {
       }
 
       case 'advanced':
-        if (isAdvancedSearch) {
-          compounds = await prisma.compoundAPIPubchem.findMany({
-            where: whereClause,
-            include: { identity: true },
-            take: 50,
-          }).then(results =>
-            results.map(r => ({
-              id: r.id,
-              name: r.identity?.name ?? r.identity?.iupacname,
-              iupacName: r.identity?.iupacname,
-              cas: r.identity?.cas,
-              pubChemCID_bigint: r.pubchemcid,
-              pubChemCID: r.pubchemcid?.toString(),
-              molecularFormula: r.molecularformula,
-              molecularWeight: r.molecularweight,
-              canonicalSMILES: r.canonicalsmiles,
-              isomericSMILES: r.isomericsmiles,
-              inchi: r.inchi,
-              inchiKey: r.inchikey,
-              xLogP: r.xlogp,
-              tpsa: r.tpsa,
-            }))
-          );
-        } else {
-          return NextResponse.json({ error: 'Invalid search parameters' }, { status: 400 });
-        }
+        // Case 2: No query, only MP range
+        compounds = await prisma.compoundAPIPubchem.findMany({
+          where: whereClause,
+          include: { identity: true },
+          take: 50,
+        }).then(results =>
+          results.map(r => ({
+            id: r.id,
+            name: r.identity?.name ?? r.identity?.iupacname,
+            iupacName: r.identity?.iupacname,
+            cas: r.identity?.cas,
+            pubChemCID_bigint: r.pubchemcid,
+            pubChemCID: r.pubchemcid?.toString(),
+            molecularFormula: r.molecularformula,
+            molecularWeight: r.molecularweight,
+            canonicalSMILES: r.canonicalsmiles,
+            isomericSMILES: r.isomericsmiles,
+            inchi: r.inchi,
+            inchiKey: r.inchikey,
+            xLogP: r.xlogp,
+            tpsa: r.tpsa,
+          }))
+        );
         break;
+
+      case 'inchi':
+        // Placeholder - implement if needed
+        return NextResponse.json({ error: 'InChI search not implemented' }, { status: 400 });
 
       default:
         return NextResponse.json({ error: 'Invalid search type' }, { status: 400 });
@@ -279,17 +316,17 @@ export async function GET(request: Request) {
         let meltingPointData = null;
         console.log(`[API LOG] Checking melting point for pubchemcid: ${compound.pubChemCID_bigint}`);
         if (compound.pubChemCID_bigint) {
-            try {
-                const mp = await prisma.meltingPoint.findUnique({
-                    where: { pubchemcid: compound.pubChemCID_bigint },
-                });
-                console.log(`[API LOG] Melting point query result:`, mp);
-                if (mp) {
-                    meltingPointData = { min: mp.minmp, max: mp.maxmp };
-                }
-            } catch (e) {
-                console.error(`[API ERROR] Could not fetch melting point for pubchemcid: ${compound.pubChemCID_bigint}`, e);
+          try {
+            const mp = await prisma.meltingPoint.findUnique({
+              where: { pubchemcid: compound.pubChemCID_bigint },
+            });
+            console.log(`[API LOG] Melting point query result:`, mp);
+            if (mp) {
+              meltingPointData = { min: mp.minmp, max: mp.maxmp };
             }
+          } catch (e) {
+            console.error(`[API ERROR] Could not fetch melting point for pubchemcid: ${compound.pubChemCID_bigint}`, e);
+          }
         }
         console.log(`[API LOG] Final meltingPointData:`, meltingPointData);
 
