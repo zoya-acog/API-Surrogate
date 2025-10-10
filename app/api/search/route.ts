@@ -365,8 +365,6 @@
 //   }
 // }
 
-
-
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { performSimilaritySearch } from '@/lib/similarity-search';
@@ -379,7 +377,6 @@ type CompoundAPIPubchemPayloadFlexible = {
   name?: string | null;
   iupacName?: string | null;
   cas?: string | null;
-  pubChemCID_bigint?: bigint | null;
   pubChemCID?: string;
   molecularFormula?: string | null;
   molecularWeight?: number | null;
@@ -411,18 +408,23 @@ export async function GET(request: Request) {
     const mp_max = parseFloat(searchParams.get('mp_max') || '300');
     console.log('[API DEBUG] Parsed melting point range:', { mp_min, mp_max });
 
+    // Validate mp_min <= mp_max
+    if (mp_min > mp_max) {
+      return NextResponse.json({ error: 'Invalid melting point range: min > max' }, { status: 400 });
+    }
+
     // Determine search type based on query, default to 'advanced' if no query and advanced search is enabled
     const type = query ? detectInputType(query) : (isAdvancedSearch ? 'advanced' : 'name');
 
     // Build where clause with melting point filter if advanced search is enabled
     const whereClause: Prisma.CompoundAPIPubchemWhereInput = {};
     let meltingPointCids: bigint[] = [];
-    if (isAdvancedSearch && (mp_min !== -50 || mp_max !== 300)) {
+    if (isAdvancedSearch) {
       console.log(`[API DEBUG] Applying melting point filter: mp_min=${mp_min}, mp_max=${mp_max}`);
       const meltingPoints = await prisma.meltingPoint.findMany({
         where: {
-          minmp: { lte: mp_max },
-          maxmp: { gte: mp_min },
+          minmp: { gte: mp_min },
+          maxmp: { lte: mp_max },
         },
         select: { pubchemcid: true },
       });
@@ -457,7 +459,7 @@ export async function GET(request: Request) {
         compounds = await prisma.compoundAPIIdentity.findMany({
           where: {
             ...baseWhere,
-            ...(isAdvancedSearch ? { pubchem: whereClause } : {}), // Apply MP filter if advanced
+            ...(isAdvancedSearch ? { pubchem: whereClause } : {}),
           },
           include: { pubchem: true },
           take: 50,
@@ -466,7 +468,6 @@ export async function GET(request: Request) {
             id: r.id,
             name: r.name ?? r.iupacname,
             iupacName: r.iupacname,
-            pubChemCID_bigint: r.pubchemcid,
             pubChemCID: r.pubchemcid?.toString(),
             canonicalSMILES: r.pubchem?.canonicalsmiles,
             molecularFormula: r.pubchem?.molecularformula,
@@ -520,7 +521,6 @@ export async function GET(request: Request) {
             name: r.identity?.name ?? r.identity?.iupacname,
             iupacName: r.identity?.iupacname,
             cas: r.identity?.cas,
-            pubChemCID_bigint: r.pubchemcid,
             pubChemCID: r.pubchemcid?.toString(),
             molecularFormula: r.molecularformula,
             molecularWeight: r.molecularweight,
@@ -547,7 +547,7 @@ export async function GET(request: Request) {
         compounds = await prisma.compoundAPIIdentity.findMany({
           where: {
             ...baseWhere,
-            ...(isAdvancedSearch ? { pubchem: whereClause } : {}), // Apply MP filter if advanced
+            ...(isAdvancedSearch ? { pubchem: whereClause } : {}),
           },
           include: { pubchem: true },
           take: 50,
@@ -556,7 +556,6 @@ export async function GET(request: Request) {
             id: r.id,
             name: r.name ?? r.iupacname,
             iupacName: r.iupacname,
-            pubChemCID_bigint: r.pubchemcid,
             pubChemCID: r.pubchemcid?.toString(),
             canonicalSMILES: r.pubchem?.canonicalsmiles,
             molecularFormula: r.pubchem?.molecularformula,
@@ -583,7 +582,7 @@ export async function GET(request: Request) {
         compounds = await prisma.compoundAPIIdentity.findMany({
           where: {
             ...baseWhere,
-            ...(isAdvancedSearch ? { pubchem: whereClause } : {}), // Apply MP filter if advanced
+            ...(isAdvancedSearch ? { pubchem: whereClause } : {}),
           },
           include: { pubchem: true },
           take: 50,
@@ -592,7 +591,6 @@ export async function GET(request: Request) {
             id: r.id,
             name: r.name ?? r.iupacname,
             iupacName: r.iupacname,
-            pubChemCID_bigint: r.pubchemcid,
             pubChemCID: r.pubchemcid?.toString(),
             canonicalSMILES: r.pubchem?.canonicalsmiles,
             molecularFormula: r.pubchem?.molecularformula,
@@ -609,7 +607,6 @@ export async function GET(request: Request) {
       }
 
       case 'advanced':
-        // Case 2: No query, only MP range
         compounds = await prisma.compoundAPIPubchem.findMany({
           where: whereClause,
           include: { identity: true },
@@ -620,7 +617,6 @@ export async function GET(request: Request) {
             name: r.identity?.name ?? r.identity?.iupacname,
             iupacName: r.identity?.iupacname,
             cas: r.identity?.cas,
-            pubChemCID_bigint: r.pubchemcid,
             pubChemCID: r.pubchemcid?.toString(),
             molecularFormula: r.molecularformula,
             molecularWeight: r.molecularweight,
@@ -635,7 +631,6 @@ export async function GET(request: Request) {
         break;
 
       case 'inchi':
-        // Placeholder - implement if needed
         return NextResponse.json({ error: 'InChI search not implemented' }, { status: 400 });
 
       default:
@@ -683,27 +678,23 @@ export async function GET(request: Request) {
         }));
 
         let meltingPointData = null;
-        console.log(`[API LOG] Checking melting point for pubchemcid: ${compound.pubChemCID_bigint}`);
-        if (compound.pubChemCID_bigint) {
+        if (compound.pubChemCID) {
           try {
             const mp = await prisma.meltingPoint.findUnique({
-              where: { pubchemcid: compound.pubChemCID_bigint },
+              where: { pubchemcid: BigInt(compound.pubChemCID) },
             });
             console.log(`[API LOG] Melting point query result:`, mp);
             if (mp) {
               meltingPointData = { min: mp.minmp, max: mp.maxmp };
             }
           } catch (e) {
-            console.error(`[API ERROR] Could not fetch melting point for pubchemcid: ${compound.pubChemCID_bigint}`, e);
+            console.error(`[API ERROR] Could not fetch melting point for pubchemcid: ${compound.pubChemCID}`, e);
           }
         }
         console.log(`[API LOG] Final meltingPointData:`, meltingPointData);
 
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { pubChemCID_bigint, ...compoundForFrontend } = compound;
-
         return {
-          ...compoundForFrontend,
+          ...compound,
           drugs,
           meltingPoint: meltingPointData,
         };

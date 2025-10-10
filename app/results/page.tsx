@@ -10,10 +10,20 @@ function ResultsContent() {
   const query = searchParams.get("query")
   const type = searchParams.get("type") || "name"
   const drawn = searchParams.get("drawn") === "true"
+  const isAdvancedSearch = searchParams.get("advanced") === "true"
+  const mp_min = searchParams.get("mp_min")
+  const mp_max = searchParams.get("mp_max")
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <ResultsDataTable query={query} type={type} drawn={drawn} />
+      <ResultsDataTable
+        query={query}
+        type={type}
+        drawn={drawn}
+        isAdvancedSearch={isAdvancedSearch}
+        mp_min={mp_min}
+        mp_max={mp_max}
+      />
     </div>
   )
 }
