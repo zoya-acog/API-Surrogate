@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense } from "react"
-import { TableSkeleton } from "@/components/TableSkeleton"
+import {LoadingSpinner} from "@/components/LoadingSpinner"
 import { useSearchParams } from "next/navigation"
 import ResultsDataTable from "@/components/ResultsDataTable"
 // Create a separate component that uses useSearchParams
@@ -34,7 +34,7 @@ export default function ResultsPage() {
       <Suspense
         fallback={
           <div className="container mx-auto py-8 px-4">
-            <TableSkeleton />
+            <LoadingSpinner />
           </div>
         }
       >

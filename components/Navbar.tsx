@@ -24,39 +24,39 @@ const Navbar = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 mr-4">
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="/API_Surrogate_About.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
+                  <Link href="/About_API_surrogate_search_app.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
                     1. Introduction
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="/How_to_use.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
-                    2. How to use
+                  <Link href="/Quick_launch_user_manual.mp4" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
+                    2. Quick Launch User Manual
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="/Data_curation.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block">
+                  <span className="w-full text-gray-900 px-2 py-1.5 block">
                     3. Data Curation
-                  </Link>
+                  </span>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="/Data_curation.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
+                  <Link href="/Formulation_and_API.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
                     3.1. Formulations details
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="/Calculated_experimental_properties.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
+                  <Link href="/Calculated_properties.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
                     3.2. Calculated properties
                   </Link>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="/Calculated_experimental_properties.pdf" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-6">
-                    3.3. Experimental Properties
-                  </Link>
+                  <span className="w-full text-gray-900 px-2 py-1.5 block pl-6">
+                    3.3 Experimental Properties
+                  </span>
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
@@ -66,7 +66,7 @@ const Navbar = () => {
                 </DropdownMenuItem>
                 
                 <DropdownMenuItem className="hover:bg-transparent cursor-default focus:bg-transparent p-0">
-                  <Link href="#" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
+                  <Link href="/pdfs" target="_blank" rel="noopener noreferrer" className="w-full text-blue-600 hover:text-blue-400 hover:bg-gray-100 px-2 py-1.5 rounded transition-colors block pl-12">
                     3.3.2. Enthalpy of fusion
                   </Link>
                 </DropdownMenuItem>

@@ -348,3 +348,16 @@ CSV HEADER;
 --     logDMax DOUBLE PRECISION,
 --     CONSTRAINT fk_logd_identity FOREIGN KEY (pubChemCID) REFERENCES compoundAPIIdentity (pubChemCID)
 -- );
+
+-- =========================
+-- Indexes
+-- =========================
+CREATE INDEX idx_compoundapiidentity_pubchemcid ON compoundapiidentity (pubchemcid);
+CREATE INDEX idx_compoundapiidentity_name ON compoundapiidentity (LOWER(name));
+CREATE INDEX idx_compoundapipubchem_id ON compoundapipubchem (id);
+CREATE INDEX idx_compoundapipubchem_pubchemcid ON compoundapipubchem (pubchemcid);
+CREATE INDEX idx_drugingredient_drugid ON drugingredient (drugid);
+CREATE INDEX idx_drugingredient_compoundid ON drugingredient (compoundid);
+CREATE INDEX idx_synonyms_pubchemcid ON synonyms (pubchemcid);
+CREATE INDEX idx_synonyms_synonym ON synonyms (LOWER(synonym));
+CREATE INDEX idx_meltingpoint_pubchemcid ON meltingpoint (pubchemcid);

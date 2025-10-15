@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react"
 import Link from "next/link"
-import { TableSkeleton } from "./TableSkeleton"
+import { LoadingSpinner } from "./LoadingSpinner"
 import FormulaDisplay from "./FormulaDisplay"
 import { Button } from "@/components/ui/button"
 import {
@@ -135,9 +135,9 @@ export default function ResultsDataTable({
     "compound.iupacName": false,
     "compound.inchi": false,
     "compound.inchiKey": false,
-    "compound.meltingPoint": true,
-    "compound.minMeltingPoint": false,
-    "compound.maxMeltingPoint": false,
+    // "compound.meltingPoint": false,
+    "compound.meltingPoint.min": true,        // ✅ ADD THIS LINE
+    "compound.meltingPoint.max": true, 
     "drug.dosageForm": true,
     "drug.dosageAndAdmin": true,
     "drug.manufacturerName": false,
@@ -264,40 +264,47 @@ export default function ResultsDataTable({
       valueFormatter: (params: ValueFormatterParams) => params.value !== null ? params.value.toFixed(2) : "N/A",
     },
     {
-      headerName: "Melting Point (°C)",
-      field: "compound.meltingPoint",
-      sortable: true,
-      resizable: true,
-      width: 150,
-      valueFormatter: (params: ValueFormatterParams) => {
-        if (!params.value) return "N/A";
-        const { min, max } = params.value;
-        if (min && max && min !== max) {
-          return `${min} - ${max}`;
-        }
-        if (min) return `${min}`;
-        if (max) return `${max}`;
-        return "N/A";
-      },
-    },
-    {
-      headerName: "Min Melting Point (°C)",
-      field: "compound.meltingPoint.min",
-      filter: "agNumberColumnFilter",
-      sortable: true,
-      resizable: true,
-      width: 150,
-      valueFormatter: (params: ValueFormatterParams) => params.value !== null ? params.value.toFixed(2) : "N/A",
-    },
-    {
-      headerName: "Max Melting Point (°C)",
-      field: "compound.meltingPoint.max",
-      filter: "agNumberColumnFilter",
-      sortable: true,
-      resizable: true,
-      width: 150,
-      valueFormatter: (params: ValueFormatterParams) => params.value !== null ? params.value.toFixed(2) : "N/A",
-    },
+  headerName: "Min Melting Point (°C)",
+  field: "compound.meltingPoint.min",
+  filter: "agNumberColumnFilter",
+  sortable: true,
+  resizable: true,
+  width: 180,
+  valueGetter: (params) => {
+    return params.data?.compound?.meltingPoint?.min ?? null;
+  },
+  valueFormatter: (params: ValueFormatterParams) => {
+    if (params.value === null || params.value === undefined) return "N/A";
+    return String(params.value);
+  },
+  comparator: (valueA: number | null, valueB: number | null) => {
+    if (valueA === null && valueB === null) return 0;
+    if (valueA === null) return 1;
+    if (valueB === null) return -1;
+    return valueA - valueB;
+  },
+},
+{
+  headerName: "Max Melting Point (°C)",
+  field: "compound.meltingPoint.max",
+  filter: "agNumberColumnFilter",
+  sortable: true,
+  resizable: true,
+  width: 180,
+  valueGetter: (params) => {
+    return params.data?.compound?.meltingPoint?.max ?? null;
+  },
+  valueFormatter: (params: ValueFormatterParams) => {
+    if (params.value === null || params.value === undefined) return "N/A";
+    return String(params.value);
+  },
+  comparator: (valueA: number | null, valueB: number | null) => {
+    if (valueA === null && valueB === null) return 0;
+    if (valueA === null) return 1;
+    if (valueB === null) return -1;
+    return valueA - valueB;
+  },
+},
     {
       headerName: "IUPAC Name",
       field: "compound.iupacName",
@@ -561,7 +568,7 @@ const toggleColumnVisibility = (field: string) => {
   if (loading) {
     return (
       <div className="flex justify-center p-8">
-        <TableSkeleton />
+        <LoadingSpinner />
       </div>
     )
   }
@@ -608,13 +615,21 @@ const toggleColumnVisibility = (field: string) => {
     <div>
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-            Search Results for :{" "}
-            <div className="relative group">
-              <span className="font-mono inline-block" title={query}>
-                {query}
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            Showing results for:{" "}
+            {isAdvancedSearch ? (
+              <span className="font-medium">
+                {mp_min && mp_max
+                  ? `Melting Point (${mp_min}°C to ${mp_max}°C)`
+                  : "Advanced Search"}
               </span>
-            </div>
+            ) : (
+              <div className="relative group">
+                <span className="font-mono inline-block" title={query}>
+                  {query}
+                </span>
+              </div>
+            )}
           </h2>
           {results[0].similarityScore
           ?<div>
@@ -686,6 +701,7 @@ const toggleColumnVisibility = (field: string) => {
           defaultColDef={defaultColDef}
           pagination={true}
           paginationPageSize={10}
+          paginationPageSizeSelector={[10, 20, 50, 100]}
           onGridReady={onGridReady}
           onFilterChanged={onFilterChanged}
           suppressMovableColumns={false}
